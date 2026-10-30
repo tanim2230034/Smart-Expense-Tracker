@@ -3,16 +3,16 @@ import { useState, useEffect } from "react";
 const API = import.meta.env.VITE_API_URL;
 
 export default function App() {
-  const [mode, setMode] = useState("login"); 
+  const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [user, setUser] = useState(null);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState({ text: "", type: "" });
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
     fetch(`${API}/api/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -28,18 +28,23 @@ export default function App() {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
+  function switchMode() {
+    setMode(mode === "login" ? "register" : "login");
+    setMessage({ text: "", type: "" });
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
-    setMessage("");
+    setMessage({ text: "", type: "" });
+    setLoading(true);
 
-    const url = `${API}/api/auth/${mode}`;
     const body =
       mode === "register"
         ? form
         : { email: form.email, password: form.password };
 
     try {
-      const res = await fetch(url, {
+      const res = await fetch(`${API}/api/auth/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -47,19 +52,27 @@ export default function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setMessage(data.error || data.message || "Something went wrong");
+        setMessage({
+          text: data.error || data.message || "Something went wrong",
+          type: "error",
+        });
         return;
       }
 
       if (mode === "register") {
         setMode("login");
-        setMessage("Registered! Now log in.");
+        setMessage({ text: "Account created! Please log in.", type: "success" });
       } else {
         localStorage.setItem("token", data.token);
         setToken(data.token);
       }
     } catch {
-      setMessage("Cannot reach the server");
+      setMessage({
+        text: "Cannot reach the server. If it was idle, wait a minute and retry.",
+        type: "error",
+      });
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -69,57 +82,133 @@ export default function App() {
     setUser(null);
   }
 
+  // ---------- Logged-in view ----------
   if (token) {
+    const initial = user?.name ? user.name[0].toUpperCase() : "?";
     return (
-      <div style={{ maxWidth: 360, margin: "40px auto" }}>
-        <h1>Smart Expense Tracker</h1>
-        <p>Welcome, {user ? user.name : "..."}!</p>
-        <button onClick={logout}>Log out</button>
-      </div>
+      <>
+        <header className="topbar">
+          <div className="logo">
+            <div className="logo-mark">$</div>
+            Smart Expense Tracker
+          </div>
+          <div className="user-area">
+            <div className="avatar">{initial}</div>
+            <button className="btn secondary" onClick={logout}>
+              Log out
+            </button>
+          </div>
+        </header>
+        <main className="container">
+          <div className="card">
+            <h1>Welcome, {user ? user.name : "..."}!</h1>
+            <p>Your expenses will appear here soon.</p>
+          </div>
+        </main>
+      </>
     );
   }
 
+  // ---------- Logged-out view ----------
+  const isLogin = mode === "login";
+
   return (
-    <div style={{ maxWidth: 360, margin: "40px auto" }}>
-      <h1>Smart Expense Tracker</h1>
-      <h2>{mode === "login" ? "Log in" : "Register"}</h2>
+    <div className="auth">
+      <aside className="auth-brand">
+        <div className="logo">
+          <div className="logo-mark">$</div>
+          Smart Expense Tracker
+        </div>
+        <div>
+          <h2>Know where your money goes.</h2>
+          <p>
+            Track every expense, see your spending clearly, and stay on top of
+            your budget.
+          </p>
+        </div>
+        <small>© 2026 Smart Expense Tracker</small>
+      </aside>
 
-      <form onSubmit={handleSubmit}>
-        {mode === "register" && (
-          <input
-            name="name"
-            placeholder="Name"
-            value={form.name}
-            onChange={handleChange}
-            required
-          />
-        )}
-        <input
-          name="email"
-          type="email"
-          placeholder="Email"
-          value={form.email}
-          onChange={handleChange}
-          required
-        />
-        <input
-          name="password"
-          type="password"
-          placeholder="Password"
-          value={form.password}
-          onChange={handleChange}
-          required
-        />
-        <button type="submit">
-          {mode === "login" ? "Log in" : "Register"}
-        </button>
-      </form>
+      <section className="auth-panel">
+        <div className="auth-box">
+          <h1>{isLogin ? "Welcome back" : "Create your account"}</h1>
+          <p className="subtitle">
+            {isLogin
+              ? "Log in to manage your expenses."
+              : "It only takes a few seconds."}
+          </p>
 
-      {message && <p>{message}</p>}
+          {message.text && (
+            <div className={`alert ${message.type}`}>{message.text}</div>
+          )}
 
-      <button className="link" onClick={() => setMode(mode === "login" ? "register" : "login")}>
-        {mode === "login" ? "Need an account? Register" : "Have an account? Log in"}
-      </button>
+          <form onSubmit={handleSubmit}>
+            {!isLogin && (
+              <div className="field">
+                <label htmlFor="name">Name</label>
+                <input
+                  id="name"
+                  name="name"
+                  placeholder="Your name"
+                  value={form.name}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            )}
+
+            <div className="field">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                value={form.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="password">Password</label>
+              <div className="password-wrap">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Your password"
+                  value={form.password}
+                  onChange={handleChange}
+                  required
+                />
+                <button
+                  type="button"
+                  className="toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+
+            <button className="btn" type="submit" disabled={loading}>
+              {loading
+                ? "Please wait..."
+                : isLogin
+                ? "Log in"
+                : "Create account"}
+            </button>
+          </form>
+
+          <p className="switch">
+            {isLogin ? "Don't have an account? " : "Already have an account? "}
+            <button className="link" onClick={switchMode}>
+              {isLogin ? "Register" : "Log in"}
+            </button>
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
