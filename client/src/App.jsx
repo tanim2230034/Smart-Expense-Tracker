@@ -2,6 +2,13 @@ import { useState, useEffect } from "react";
 
 const API = import.meta.env.VITE_API_URL;
 
+const RULES = [
+  { label: "At least 8 characters", test: (p) => p.length >= 8 },
+  { label: "One uppercase letter", test: (p) => /[A-Z]/.test(p) },
+  { label: "One lowercase letter", test: (p) => /[a-z]/.test(p) },
+  { label: "One number", test: (p) => /\d/.test(p) },
+];
+
 export default function App() {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
@@ -36,6 +43,18 @@ export default function App() {
   async function handleSubmit(e) {
     e.preventDefault();
     setMessage({ text: "", type: "" });
+
+    if (
+      mode === "register" &&
+      !RULES.every(({ test }) => test(form.password))
+    ) {
+      setMessage({
+        text: "Please meet all password requirements.",
+        type: "error",
+      });
+      return;
+    }
+
     setLoading(true);
 
     const body =
@@ -61,7 +80,10 @@ export default function App() {
 
       if (mode === "register") {
         setMode("login");
-        setMessage({ text: "Account created! Please log in.", type: "success" });
+        setMessage({
+          text: "Account created! Please log in.",
+          type: "success",
+        });
       } else {
         localStorage.setItem("token", data.token);
         setToken(data.token);
@@ -111,6 +133,8 @@ export default function App() {
 
   // ---------- Logged-out view ----------
   const isLogin = mode === "login";
+  const passwordOk = RULES.every((r) => r.test(form.password));
+  const blockSubmit = loading || (!isLogin && !passwordOk);
 
   return (
     <div className="auth">
@@ -190,14 +214,30 @@ export default function App() {
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
+              {!isLogin && (
+                <ul
+                  className="password-rules"
+                  aria-label="Password requirements"
+                >
+                  {RULES.map(({ label, test }) => {
+                    const isMet = test(form.password);
+                    return (
+                      <li key={label} className={isMet ? "met" : ""}>
+                        <span aria-hidden="true">{isMet ? "✓" : "○"}</span>{" "}
+                        {label}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
 
-            <button className="btn" type="submit" disabled={loading}>
+            <button className="btn" type="submit" disabled={blockSubmit}>
               {loading
                 ? "Please wait..."
                 : isLogin
-                ? "Log in"
-                : "Create account"}
+                  ? "Log in"
+                  : "Create account"}
             </button>
           </form>
 
